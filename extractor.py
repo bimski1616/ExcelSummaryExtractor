@@ -1,4 +1,5 @@
 import pandas as pd
+import traceback
 
 from openpyxl.utils.cell import (
     coordinate_from_string,
@@ -65,7 +66,8 @@ def process_files(uploaded_files, progress_bar=None, status_text=None):
 
             error_log.append({
                 "File Name": file.name,
-                "Error": str(e)
+                "Error": str(e),
+                "Traceback": traceback.format_exc()
             })
 
         # ======================
