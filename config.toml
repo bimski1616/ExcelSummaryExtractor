@@ -1,0 +1,7 @@
+[server]
+maxUploadSize = 400
+maxMessageSize = 400
+enableXsrfProtection = true
+
+[browser]
+gatherUsageStats = false
