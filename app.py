@@ -1,8 +1,8 @@
 import streamlit as st
 import pandas as pd
-from io import BytesIO
-
 from extractor import process_files
+from io import BytesIO
+from openpyxl import load_workbook
 
 st.set_page_config(
     page_title="Excel Summary Extractor",
@@ -13,77 +13,77 @@ st.set_page_config(
 st.title("📊 Excel Summary Extractor")
 
 st.write(
-    "Upload satu atau beberapa file Excel, lalu klik **Process**."
+    "Upload satu atau beberapa file Excel kemudian klik **Process Files**."
 )
 
 uploaded_files = st.file_uploader(
-    "Upload Excel",
+    "Upload Excel Files",
     type=["xlsx"],
     accept_multiple_files=True
 )
 
+# ==========================
+# FILE INFO
+# ==========================
+
 if uploaded_files:
 
-    st.success(f"{len(uploaded_files)} file berhasil dipilih.")
+    st.success(f"✅ {len(uploaded_files)} file berhasil dipilih")
 
-    if st.button("🚀 Process"):
+    with st.expander("Detail File"):
 
-        # ==========================
-        # Progress Bar
-        # ==========================
+        for f in uploaded_files:
+
+            st.write(
+                f"📄 {f.name} ({f.size/1024:.2f} KB)"
+            )
+
+    # ==========================
+    # PROCESS BUTTON
+    # ==========================
+
+    if st.button("🚀 Process Files", use_container_width=True):
 
         progress_bar = st.progress(0)
 
         status_text = st.empty()
 
-        hasil_df, error_df = process_files(
-            uploaded_files,
-            progress_bar=progress_bar,
-            status_text=status_text
-        )
+        with st.spinner("Sedang memproses file..."):
+
+            hasil_df, error_df = process_files(
+                uploaded_files,
+                progress_bar=progress_bar,
+                status_text=status_text
+            )
 
         progress_bar.empty()
         status_text.empty()
 
-        st.success("✅ Semua file selesai diproses")
-
         # ==========================
-        # Summary
+        # METRICS
         # ==========================
 
-        total_file = len(uploaded_files)
-        success_file = len(hasil_df)
-        error_file = len(error_df)
+        total = len(uploaded_files)
+        success = len(hasil_df)
+        failed = len(error_df)
 
         col1, col2, col3 = st.columns(3)
 
-        col1.metric(
-            "📂 Total File",
-            total_file
-        )
-
-        col2.metric(
-            "✅ Success",
-            success_file
-        )
-
-        col3.metric(
-            "❌ Error",
-            error_file
-        )
-
-        st.divider()
+        col1.metric("📂 Total File", total)
+        col2.metric("✅ Success", success)
+        col3.metric("❌ Error", failed)
 
         # ==========================
         # PREVIEW
         # ==========================
 
-        st.subheader("📊 Preview")
+        st.subheader("Preview")
 
         preview_df = hasil_df.copy()
 
-        # Format semua kolom numeric
-        for col in preview_df.select_dtypes(include="number").columns:
+        numeric_cols = preview_df.select_dtypes(include="number").columns
+
+        for col in numeric_cols:
 
             preview_df[col] = preview_df[col].map(
                 lambda x: f"{x:,.2f}" if pd.notnull(x) else ""
@@ -94,10 +94,8 @@ if uploaded_files:
             use_container_width=True
         )
 
-        st.divider()
-
         # ==========================
-        # EXPORT
+        # DOWNLOAD
         # ==========================
 
         output = BytesIO()
@@ -113,34 +111,32 @@ if uploaded_files:
                 sheet_name="Summary"
             )
 
-            worksheet = writer.sheets["Summary"]
-
-            for idx, column in enumerate(hasil_df.columns, start=1):
-
-                if pd.api.types.is_numeric_dtype(
-                    hasil_df[column]
-                ):
-
-                    for row in range(
-                        2,
-                        worksheet.max_row + 1
-                    ):
-
-                        worksheet.cell(
-                            row=row,
-                            column=idx
-                        ).number_format = "#,##0.00"
-
         output.seek(0)
 
-        st.download_button(
-            label="📥 Download Hasil Excel",
-            data=output,
-            file_name="hasil_summary.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+        wb = load_workbook(output)
 
-        st.divider()
+        ws = wb["Summary"]
+
+        for col in ws.iter_cols(min_row=2):
+
+            for cell in col:
+
+                if isinstance(cell.value, (int, float)):
+                    cell.number_format = "#,##0.00"
+
+        final_output = BytesIO()
+
+        wb.save(final_output)
+
+        final_output.seek(0)
+
+        st.download_button(
+            "⬇ Download Result",
+            data=final_output,
+            file_name="Summary_Output.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True
+        )
 
         # ==========================
         # ERROR LOG
