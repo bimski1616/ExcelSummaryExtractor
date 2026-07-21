@@ -11,7 +11,8 @@ PROJECT_RULES = {
 
     "25-RNP-HWI-IOH-10-003": {
 
-        "Total Revenue": 2,
+        "Total Revenue": 3,
+        "Total Cost (Before Finance Cost)": 3,
 
     }
 
