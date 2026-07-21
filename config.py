@@ -1,5 +1,22 @@
 MAPPING = {
-    "PROJECT CODE": "J2",
-    "Total Revenue": "E87",
-    "Total Cost (Before Finance Cost)": "E88",
+
+    "PROJECT CODE": {
+        "type": "cell",
+        "value": "J2"
+    },
+
+    "Total Revenue": {
+        "type": "label",
+        "value": [
+            "Total Revenue"
+        ]
+    },
+
+    "Total Cost (Before Finance Cost)": {
+        "type": "label",
+        "value": [
+            "Total Cost (Before Finance Cost)"
+        ]
+    }
+
 }
