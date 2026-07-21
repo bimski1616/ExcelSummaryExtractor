@@ -18,13 +18,15 @@ def get_cell(ws, cell):
 # =====================================================
 # Cari value berdasarkan label
 #
-# number_index
-# 1 = angka pertama
-# 2 = angka kedua
+# occurrence
+# 1 = label pertama
+# 2 = label kedua
 # =====================================================
-def get_label_value(ws, label, number_index=1):
+def get_label_value(ws, label, occurrence=1):
 
     label = label.strip().lower()
+
+    found_count = 0
 
     for row in ws.iter_rows():
 
@@ -41,6 +43,11 @@ def get_label_value(ws, label, number_index=1):
             if label not in text:
                 continue
 
+            found_count += 1
+
+            if found_count != occurrence:
+                continue
+
             start_row = cell.row
             start_col = cell.column
 
@@ -49,41 +56,29 @@ def get_label_value(ws, label, number_index=1):
             # Cari angka di kanan label
             # ============================================
 
-            numbers = []
-
             for c in range(start_col + 1, start_col + 11):
 
                 value = ws.cell(start_row, c).value
 
                 if isinstance(value, (int, float)):
-                    numbers.append(value)
-
-            if len(numbers) >= number_index:
-                return numbers[number_index - 1]
+                    return value
 
             # ============================================
             # PRIORITAS 2
             # Cari angka di bawah label
             # ============================================
 
-            numbers = []
-
             for r in range(start_row + 1, start_row + 6):
 
                 value = ws.cell(r, start_col).value
 
                 if isinstance(value, (int, float)):
-                    numbers.append(value)
-
-            if len(numbers) >= number_index:
-                return numbers[number_index - 1]
+                    return value
 
             # ============================================
             # PRIORITAS 3
             # Scan area sekitar
             # ============================================
-
-            numbers = []
 
             for r in range(start_row, start_row + 5):
 
@@ -92,10 +87,7 @@ def get_label_value(ws, label, number_index=1):
                     value = ws.cell(r, c).value
 
                     if isinstance(value, (int, float)):
-                        numbers.append(value)
-
-            if len(numbers) >= number_index:
-                return numbers[number_index - 1]
+                        return value
 
     return None
 
@@ -119,16 +111,8 @@ def process_files(uploaded_files, progress_bar=None, status_text=None):
                 data_only=True
             )
 
-            # ============================================
-            # Ambil sheet pertama
-            # ============================================
-
             sheet = wb.sheetnames[0]
             ws = wb[sheet]
-
-            # ============================================
-            # Ambil Project Code
-            # ============================================
 
             project_code = get_cell(ws, "J2")
 
@@ -137,10 +121,6 @@ def process_files(uploaded_files, progress_bar=None, status_text=None):
                 "Sheet Name": sheet,
                 "PROJECT CODE": project_code
             }
-
-            # ============================================
-            # Loop semua mapping
-            # ============================================
 
             for field, config in MAPPING.items():
 
@@ -161,12 +141,13 @@ def process_files(uploaded_files, progress_bar=None, status_text=None):
                             labels = [labels]
 
                         # ====================================
-                        # Default ambil angka pertama
+                        # Default ambil label pertama
                         # ====================================
 
-                        number_index = (
+                        occurrence = (
                             PROJECT_RULES
                             .get(project_code, {})
+                            .get("occurrence", {})
                             .get(field, 1)
                         )
 
@@ -177,7 +158,7 @@ def process_files(uploaded_files, progress_bar=None, status_text=None):
                             value = get_label_value(
                                 ws,
                                 lbl,
-                                number_index
+                                occurrence
                             )
 
                             if value is not None:
@@ -203,7 +184,7 @@ def process_files(uploaded_files, progress_bar=None, status_text=None):
             })
 
         # ============================================
-        # Progress Bar
+        # Progress
         # ============================================
 
         if progress_bar is not None:
