@@ -95,6 +95,49 @@ def get_label_value(ws, label, occurrence=1):
 # =====================================================
 # Main Process
 # =====================================================
+def get_without_regional_cost(ws):
+
+    start_row = None
+    start_col = None
+
+    for row in ws.iter_rows():
+
+        for cell in row:
+
+            if cell.value is None:
+                continue
+
+            text = str(cell.value).strip().lower()
+
+            if "without regional cost" in text:
+
+                start_row = cell.row
+                start_col = cell.column
+                break
+
+        if start_row is not None:
+            break
+
+    if start_row is None:
+        return {}
+
+    values = []
+
+    for r in range(start_row + 1, start_row + 20):
+
+        value = ws.cell(row=r, column=start_col).value
+
+        if isinstance(value, (int, float)):
+            values.append(value)
+
+    if len(values) < 2:
+        return {}
+
+    return {
+        "Total Revenue": values[0],
+        "Total Cost (Before Finance Cost)": values[1],
+    }
+
 def process_files(uploaded_files, progress_bar=None, status_text=None):
 
     hasil_semua = []
@@ -116,6 +159,18 @@ def process_files(uploaded_files, progress_bar=None, status_text=None):
 
             project_code = get_cell(ws, "J2")
 
+            summary_type = (
+                PROJECT_RULES
+                .get(project_code, {})
+                .get("summary_type")
+            )
+
+            special_summary = {}
+
+            if summary_type == "without_regional_cost":
+                special_summary = get_without_regional_cost(ws)
+
+
             hasil = {
                 "File Name": file.name,
                 "Sheet Name": sheet,
@@ -123,6 +178,10 @@ def process_files(uploaded_files, progress_bar=None, status_text=None):
             }
 
             for field, config in MAPPING.items():
+
+                if field in special_summary:
+                    hasil[field] = special_summary[field]
+                    continue
 
                 try:
 
