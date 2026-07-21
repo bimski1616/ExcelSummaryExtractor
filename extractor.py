@@ -1,24 +1,99 @@
 import pandas as pd
-import traceback
 
-from openpyxl.utils.cell import (
-    coordinate_from_string,
-    column_index_from_string,
-)
+from openpyxl import load_workbook
+from openpyxl.cell.cell import MergedCell
 
 from config import MAPPING
 
 
-def excel_cell(df, cell):
+# =====================================================
+# Ambil value berdasarkan alamat cell
+# Contoh:
+# J2
+# E10
+# =====================================================
+def get_cell(ws, cell):
 
-    col, row = coordinate_from_string(cell)
-
-    row -= 1
-    col = column_index_from_string(col) - 1
-
-    return df.iloc[row, col]
+    return ws[cell].value
 
 
+# =====================================================
+# Cari value berdasarkan label
+#
+# Flow:
+# 1. Cari label
+# 2. Cari angka di kanan
+# 3. Kalau tidak ada cari di bawah
+# 4. Kalau masih tidak ada scan area sekitar
+# =====================================================
+def get_label_value(ws, label):
+
+    label = label.strip().lower()
+
+    for row in ws.iter_rows():
+
+        for cell in row:
+
+            # Skip merged placeholder
+            if isinstance(cell, MergedCell):
+                continue
+
+            if cell.value is None:
+                continue
+
+            text = str(cell.value).strip().lower()
+
+            # Lebih fleksibel
+            if label not in text:
+                continue
+
+            start_row = cell.row
+            start_col = cell.column
+
+            # =================================================
+            # PRIORITAS 1
+            # Cari angka di kanan label
+            # =================================================
+
+            for c in range(start_col + 1, start_col + 11):
+
+                value = ws.cell(start_row, c).value
+
+                if isinstance(value, (int, float)):
+                    return value
+
+            # =================================================
+            # PRIORITAS 2
+            # Cari angka di bawah label
+            # =================================================
+
+            for r in range(start_row + 1, start_row + 6):
+
+                value = ws.cell(r, start_col).value
+
+                if isinstance(value, (int, float)):
+                    return value
+
+            # =================================================
+            # PRIORITAS 3
+            # Scan area sekitar
+            # =================================================
+
+            for r in range(start_row, start_row + 5):
+
+                for c in range(start_col, start_col + 10):
+
+                    value = ws.cell(r, c).value
+
+                    if isinstance(value, (int, float)):
+                        return value
+
+    return None
+
+
+# =====================================================
+# Main Process
+# =====================================================
 def process_files(uploaded_files, progress_bar=None, status_text=None):
 
     hasil_semua = []
@@ -30,34 +105,66 @@ def process_files(uploaded_files, progress_bar=None, status_text=None):
 
         try:
 
-            excel = pd.ExcelFile(file)
-
-            # Cari sheet SUMMARY
-            sheet_upper = [s.upper() for s in excel.sheet_names]
-
-            if "SUMMARY" in sheet_upper:
-                idx = sheet_upper.index("SUMMARY")
-                sheet = excel.sheet_names[idx]
-            else:
-                sheet = excel.sheet_names[0]
-
-            df = pd.read_excel(
+            wb = load_workbook(
                 file,
-                sheet_name=sheet,
-                header=None
+                data_only=True
             )
+
+            # ============================================
+            # Ambil sheet pertama
+            # ============================================
+
+            sheet = wb.sheetnames[0]
+
+            ws = wb[sheet]
 
             hasil = {
                 "File Name": file.name,
                 "Sheet Name": sheet
             }
 
-            for field, cell in MAPPING.items():
+            # ============================================
+            # Loop semua mapping
+            # ============================================
+
+            for field, config in MAPPING.items():
 
                 try:
-                    hasil[field] = excel_cell(df, cell)
+
+                    if config["type"] == "cell":
+
+                        hasil[field] = get_cell(
+                            ws,
+                            config["value"]
+                        )
+
+                    elif config["type"] == "label":
+
+                        labels = config["value"]
+
+                        if isinstance(labels, str):
+                            labels = [labels]
+
+                        value = None
+
+                        for lbl in labels:
+
+                            value = get_label_value(
+                                ws,
+                                lbl
+                            )
+
+                            if value is not None:
+                                break
+
+                        hasil[field] = value
+
+                    else:
+
+                        hasil[field] = None
 
                 except Exception:
+
                     hasil[field] = None
 
             hasil_semua.append(hasil)
@@ -66,13 +173,12 @@ def process_files(uploaded_files, progress_bar=None, status_text=None):
 
             error_log.append({
                 "File Name": file.name,
-                "Error": str(e),
-                "Traceback": traceback.format_exc()
+                "Error": str(e)
             })
 
-        # ======================
-        # Progress
-        # ======================
+        # ============================================
+        # Progress Bar
+        # ============================================
 
         if progress_bar is not None:
             progress_bar.progress(i / total_file)
